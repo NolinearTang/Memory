@@ -1,0 +1,525 @@
+vault_dir: .reme
+daily_dir: daily
+digest_dir: digest
+resource_dir: ""
+# language: zh
+
+service:
+  backend: http
+
+jobs:
+  update_store_index_loop:
+    backend: background
+    watch_paths: [ "daily", "digest" ]
+    suffix_filters: [ "md" ]
+    steps:
+      - backend: scan_store_changes_step
+        recursive: true
+      - backend: update_index_step
+        persist: true
+      - backend: watch_changes_step
+        dispatch_step: update_index_step
+
+  version:
+    backend: base
+    description: "return reme package version"
+    parameters:
+      type: object
+      properties: { }
+    steps:
+      - backend: version_step
+
+  health_check:
+    backend: base
+    description: "return a concise health-check snapshot of reme components"
+    parameters:
+      type: object
+      properties: { }
+    steps:
+      - backend: health_check_step
+
+  help:
+    backend: base
+    description: "list all registered jobs with their metadata"
+    parameters:
+      type: object
+      properties: { }
+    steps:
+      - backend: help_step
+
+  traverse:
+    backend: base
+    description: "Walk the wikilink graph from a path."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "path"
+        depth:
+          type: integer
+          description: "hop limit"
+          default: 1
+        direction:
+          type: string
+          enum:
+            - forward
+            - backward
+            - both
+          default: both
+      required:
+        - path
+    steps:
+      - backend: traverse_step
+
+  reindex:
+    backend: base
+    description: "wipe the file store and rebuild it from the existing files"
+    parameters:
+      type: object
+      properties: { }
+    steps:
+      - backend: clear_and_scan_step
+      - backend: update_index_step
+        persist: true
+
+  search:
+    backend: base
+    description: "Hybrid vault search (vector + BM25, RRF-fused)."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "search query"
+        limit:
+          type: integer
+          description: "max results"
+          default: 5
+        min_score:
+          type: number
+          description: "min fused score"
+          default: 0.0
+      required:
+        - query
+    steps:
+      - backend: search_step
+        vector_weight: 0.7
+        candidate_multiplier: 3.0
+        expand_links: true
+        max_links_per_direction: 10
+
+  node_search:
+    backend: base
+    description: "Digest node recall — given a candidate abstraction's name+description, surface existing digest nodes similar enough to either dedup against or link to as related."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "search query"
+        limit:
+          type: integer
+          description: "max digest nodes to return"
+          default: 20
+      required:
+        - query
+    steps:
+      - backend: node_search_step
+        vector_weight: 0.7
+        candidate_multiplier: 5.0
+
+  daily_create:
+    backend: base
+    description: "Provision a session note under a daily folder: daily/<date>/<session_id>.md or daily/<date>.md"
+    parameters:
+      type: object
+      properties:
+        session_id:
+          type: string
+          description: "the session identifier (also the file stem); empty = day-level file"
+          default: ""
+        date:
+          type: string
+          description: "YYYY-MM-DD; empty = today"
+          default: ""
+    steps:
+      - backend: daily_create_step
+
+  daily_list:
+    backend: base
+    description: "List notes under a single day."
+    parameters:
+      type: object
+      properties:
+        date:
+          type: string
+          description: "YYYY-MM-DD; empty = today"
+          default: ""
+    steps:
+      - backend: daily_list_step
+
+  daily_reindex:
+    backend: base
+    description: "Rebuild the day-index page daily/<date>.md."
+    parameters:
+      type: object
+      properties:
+        date:
+          type: string
+          description: "YYYY-MM-DD; empty = today"
+          default: ""
+    steps:
+      - backend: daily_reindex_step
+
+  frontmatter_delete:
+    backend: base
+    description: "Drop keys from a file's frontmatter."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path"
+        keys:
+          type: array
+          description: "keys to remove"
+          items:
+            type: string
+      required:
+        - path
+        - keys
+    steps:
+      - backend: frontmatter_delete_step
+
+  frontmatter_read:
+    backend: base
+    description: "Read a file's frontmatter as a dict."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path"
+      required:
+        - path
+    steps:
+      - backend: frontmatter_read_step
+
+  frontmatter_update:
+    backend: base
+    description: "Merge key-values into a file's frontmatter."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path"
+        metadata:
+          type: object
+          description: "key-values to merge"
+      required:
+        - path
+        - metadata
+    steps:
+      - backend: frontmatter_update_step
+
+  stat:
+    backend: base
+    description: "Stat path (size, mtime, exists, is_dir, is_file)."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path"
+      required:
+        - path
+    steps:
+      - backend: stat_step
+
+  list:
+    backend: base
+    description: "List files under a vault path."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative dir; empty = root"
+          default: ""
+        recursive:
+          type: boolean
+          description: "recurse"
+          default: false
+        limit:
+          type: integer
+          description: "max results"
+          default: 100
+    steps:
+      - backend: list_step
+
+  move:
+    backend: base
+    description: "Move / rename a vault file; rewrites inbound wikilinks by default."
+    parameters:
+      type: object
+      properties:
+        src_path:
+          type: string
+          description: "vault-relative source"
+        dst_path:
+          type: string
+          description: "vault-relative destination"
+        overwrite:
+          type: boolean
+          description: "overwrite if dst exists"
+          default: false
+        retarget:
+          type: boolean
+          description: "rewrite [[src]] → [[dst]] across the vault"
+          default: true
+      required:
+        - src_path
+        - dst_path
+    steps:
+      - backend: move_step
+
+  delete:
+    backend: base
+    description: "Delete a vault file or folder; returns surviving inbound wikilinks."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path"
+      required:
+        - path
+    steps:
+      - backend: delete_step
+
+  read:
+    backend: base
+    description: "Read a markdown file under the vault."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path; markdown only"
+        start_line:
+          type: integer
+          description: "first line (1-based, inclusive)"
+        end_line:
+          type: integer
+          description: "last line (1-based, inclusive)"
+      required:
+        - path
+    steps:
+      - backend: read_step
+        with_neighbors: false
+        max_neighbors_per_direction: 10
+
+  read_image:
+    backend: base
+    description: "Read an image file as base64 (vault-relative path)."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: >-
+            vault-relative path; common image formats supported
+            (png/jpg/jpeg/webp/gif/bmp/tiff/heic)
+      required:
+        - path
+    steps:
+      - backend: read_image_step
+        max_bytes: 5242880
+
+  write:
+    backend: base
+    description: "Write a markdown file (create or overwrite) with name/description frontmatter."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path; markdown only"
+        name:
+          type: string
+          description: "frontmatter name"
+        description:
+          type: string
+          description: "frontmatter description"
+        content:
+          type: string
+          description: "body"
+        metadata:
+          type: object
+          description: "Optional extra frontmatter fields (md only)."
+      required:
+        - path
+        - name
+        - description
+        - content
+    steps:
+      - backend: write_step
+
+  edit:
+    backend: base
+    description: "Find-and-replace in a markdown file (all occurrences)."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path"
+        old:
+          type: string
+          description: "text to find"
+        new:
+          type: string
+          description: "replacement"
+          default: ""
+      required:
+        - path
+        - old
+        - new
+    steps:
+      - backend: edit_step
+
+  dream:
+    backend: base
+    description: "Dream: lift atomic units from one daily/resource file into digest/ (LLM)."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "vault-relative path of one daily-event note or resource file"
+        hint:
+          type: string
+          description: "caller guidance to the dreamer LLM"
+          default: ""
+      required:
+        - path
+    steps:
+      - backend: dream_step
+
+  auto-dream:
+    backend: base
+    description: "Auto-dream: scan today's day-index <daily_dir>/<today>.md and session notes under <daily_dir>/<today>/*.md — run dream on each (Phase 1 extract+classify, Phase 2 per-bucket integrate)."
+    parameters:
+      type: object
+      properties:
+        date:
+          type: string
+          description: "YYYY-MM-DD to scan; defaults to today in the dreamer's timezone"
+          default: ""
+        hint:
+          type: string
+          description: "caller guidance passed through to each per-file dream"
+          default: ""
+    steps:
+      - backend: auto_dream_step
+
+  auto_memory:
+    backend: base
+    description: "Auto-memory: record conversation facts into a daily note"
+    parameters:
+      type: object
+      properties:
+        messages:
+          type: array
+          description: "messages"
+          items:
+            type: object
+        session_id:
+          type: string
+          description: "session identifier passed to daily_create"
+          default: ""
+        memory_hint:
+          type: string
+          description: "optional hint"
+        timezone:
+          type: string
+          description: "IANA timezone, e.g. Asia/Shanghai"
+          default: "Asia/Shanghai"
+      required:
+        - messages
+    steps:
+      - backend: auto_memory_step
+
+components:
+  tokenizer:
+    default:
+      backend: regex
+
+  as_embedding:
+    default:
+      backend: ${EMBEDDING_BACKEND:-openai}
+      api_key: ${EMBEDDING_API_KEY:-}
+      base_url: ${EMBEDDING_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      model_name: ${EMBEDDING_MODEL_NAME:-text-embedding-v4}
+      dimensions: 1024
+
+  embedding_store:
+    default:
+      backend: local
+      as_embedding: default
+
+  as_llm:
+    default:
+      backend: ${LLM_BACKEND:-anthropic}
+      model: ${LLM_MODEL_NAME:-glm-5.1}
+      stream: true
+      context_size: 200000
+      max_retries: 3
+      credential:
+        api_key: ${LLM_API_KEY:-}
+        base_url: ${LLM_BASE_URL:-https://dashscope.aliyuncs.com/apps/anthropic}
+      parameters:
+        max_tokens: 65536
+        thinking_enable: true
+
+  agent_wrapper:
+    default:
+      backend: agentscope
+      as_llm: default
+    claude_code:
+      backend: claude_code
+      model: ${LLM_MODEL_NAME:-claude-opus-4-6}
+      permission_mode: bypassPermissions
+      max_turns: 10
+
+  file_graph:
+    default:
+      backend: local
+
+  file_catalog:
+    default:
+      backend: local
+
+  file_chunker:
+    markdown:
+      backend: markdown
+      supported_extensions: [ "md" ]
+    default:
+      backend: default
+      supported_extensions: [ "txt", "html", "json", "jsonl", "yaml", "py" ]
+
+  keyword_index:
+    default:
+      backend: bm25
+      tokenizer: default
+
+  file_store:
+    default:
+      backend: local
+      store_name: local
+      #  embedding_store: default
+      embedding_store: ""
+      keyword_index: default
+      file_graph: default
