@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "compress-reme"
+version = "1.0.0"
+description = "基于ReMe的Session级别对话压缩和记忆抽取服务"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["llm", "compression", "memory", "reme", "agentscope"]
+
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "agentscope>=0.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+]
+
+[project.scripts]
+compress-reme-server = "compress_reme.reme_server:main"
+compress-reme-client = "compress_reme.reme_client:main"
+compress-reme-example = "compress_reme.example:main"
+
+[tool.setuptools]
+packages = ["compress_reme"]
+
+[tool.setuptools.package-data]
+compress_reme = ["*.md", "*.txt"]

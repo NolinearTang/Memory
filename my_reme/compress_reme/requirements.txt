@@ -1,0 +1,14 @@
+# ReMe压缩服务依赖
+
+# 核心依赖
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+requests>=2.31.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# ReMe依赖（从本地安装）
+# cd ../ReMe && pip install -e .
+
+# AgentScope依赖
+agentscope>=0.0.1
