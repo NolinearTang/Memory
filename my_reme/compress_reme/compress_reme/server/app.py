@@ -214,7 +214,7 @@ async def add_messages(session_id: str, request: AddMessagesRequest):
         # 转换为Msg对象
         msgs = [
             Msg(
-                name=msg.name,
+                name=msg.name or msg.role,  # 如果没有指定name，使用role
                 role=msg.role,
                 content=msg.content,
                 **({"tool_calls": msg.tool_calls} if msg.tool_calls else {}),

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 class Message(BaseModel):
     """消息模型"""
-    name: str = Field(default="user", description="消息发送者名称")
+    name: str | None = Field(None, description="消息发送者名称（如不指定则使用role）")
     role: str = Field(..., description="消息角色: user/assistant/system/tool")
     content: str | None = Field(None, description="消息内容")
     tool_calls: list[dict[str, Any]] | None = Field(None, description="工具调用")
