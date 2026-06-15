@@ -5,11 +5,7 @@
 
 import time
 
-try:
-    from compress_reme.reme_client import ReMeClient
-except ImportError:
-    # 当直接运行此文件时
-    from reme_client import ReMeClient
+from compress_reme.client import ReMeClient
 
 
 def example_basic_workflow():

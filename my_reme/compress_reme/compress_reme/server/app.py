@@ -20,8 +20,8 @@ from fastapi.responses import JSONResponse
 from agentscope.message import Msg
 import uvicorn
 
-from .session_manager import SessionManager
-from .models import (
+from ..core.session_manager import SessionManager
+from ..core.models import (
     CreateSessionRequest, CreateSessionResponse,
     AddMessagesRequest, AddMessagesResponse,
     CompactRequest, CompactResponse,

@@ -3,7 +3,7 @@
 演示如何在创建会话时配置 LLM。
 """
 
-from compress_reme.reme_client import ReMeClient
+from compress_reme.client import ReMeClient
 
 
 def example_config_in_session():

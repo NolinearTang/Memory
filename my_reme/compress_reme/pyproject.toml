@@ -19,6 +19,7 @@ dependencies = [
     "uvicorn[standard]>=0.24.0",
     "requests>=2.31.0",
     "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
     "agentscope>=0.0.1",
 ]
 
@@ -30,12 +31,12 @@ dev = [
 ]
 
 [project.scripts]
-compress-reme-server = "compress_reme.reme_server:main"
-compress-reme-client = "compress_reme.reme_client:main"
-compress-reme-example = "compress_reme.example:main"
+compress-reme-server = "compress_reme.__main__:main"
+compress-reme-client = "compress_reme.client.client:main"
+compress-reme-example = "examples.basic_usage:main"
 
 [tool.setuptools]
-packages = ["compress_reme"]
+packages = ["compress_reme", "compress_reme.core", "compress_reme.server", "compress_reme.client"]
 
 [tool.setuptools.package-data]
 compress_reme = ["*.md", "*.txt"]
