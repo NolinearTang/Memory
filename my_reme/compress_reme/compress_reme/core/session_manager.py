@@ -13,9 +13,14 @@ import logging
 from agentscope.message import Msg
 
 try:
-    from reme import ReMeLight
+    from reme.reme_light import ReMeLight
 except ImportError:
-    raise ImportError("请先安装 reme: 在 ReMe 目录下运行 pip install -e .")
+    raise ImportError(
+        "请先安装 reme 包:\n"
+        "  pip install reme\n"
+        "或者从源码安装:\n"
+        "  cd <ReMe目录> && pip install -e ."
+    )
 
 logger = logging.getLogger(__name__)
 
