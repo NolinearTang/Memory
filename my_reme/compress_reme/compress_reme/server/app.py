@@ -97,15 +97,16 @@ async def root():
     return {
         "service": "ReMe压缩服务",
         "version": "1.0.0",
+        "note": "所有接口都支持自动创建session，无需预先调用create_session",
         "endpoints": {
-            "create_session": "POST /sessions - 创建会话",
+            "create_session": "POST /sessions - 创建会话（可选，会自动创建）",
             "delete_session": "DELETE /sessions/{session_id} - 删除会话",
-            "add_messages": "POST /sessions/{session_id}/messages - 添加消息",
-            "get_messages": "GET /sessions/{session_id}/messages - 获取消息",
-            "compact": "POST /sessions/{session_id}/compact - 压缩对话",
-            "summary": "POST /sessions/{session_id}/summary - 生成摘要",
-            "search": "POST /sessions/{session_id}/search - 搜索记忆",
-            "stats": "GET /sessions/{session_id}/stats - 会话统计",
+            "add_messages": "POST /sessions/{session_id}/messages - 添加消息（自动创建session）",
+            "get_messages": "GET /sessions/{session_id}/messages - 获取消息（自动创建session）",
+            "compact": "POST /sessions/{session_id}/compact - 压缩对话（自动创建session）",
+            "summary": "POST /sessions/{session_id}/summary - 生成摘要（自动创建session）",
+            "search": "POST /sessions/{session_id}/search - 搜索记忆（自动创建session）",
+            "stats": "GET /sessions/{session_id}/stats - 会话统计（自动创建session）",
             "global_stats": "GET /stats - 全局统计",
             "list_sessions": "GET /sessions - 列出所有会话",
         },
@@ -180,11 +181,35 @@ async def list_sessions():
     }
 
 
+async def get_or_create_session(session_id: str, llm_config: dict | None = None, embedding_config: dict | None = None):
+    """获取或自动创建会话
+    
+    Args:
+        session_id: 会话ID
+        llm_config: LLM配置（可选）
+        embedding_config: Embedding配置（可选）
+    
+    Returns:
+        Session对象
+    """
+    try:
+        return session_manager.get_session(session_id)
+    except KeyError:
+        # Session不存在，自动创建
+        logger.info(f"会话 {session_id} 不存在，自动创建")
+        await session_manager.create_session(
+            session_id=session_id,
+            llm_config=llm_config,
+            embedding_config=embedding_config,
+        )
+        return session_manager.get_session(session_id)
+
+
 @app.post("/sessions/{session_id}/messages", response_model=AddMessagesResponse)
 async def add_messages(session_id: str, request: AddMessagesRequest):
-    """添加消息到会话"""
+    """添加消息到会话（如果会话不存在会自动创建）"""
     try:
-        session = session_manager.get_session(session_id)
+        session = await get_or_create_session(session_id)
         
         # 转换为Msg对象
         msgs = [
@@ -208,8 +233,6 @@ async def add_messages(session_id: str, request: AddMessagesRequest):
             total_messages=len(session.messages),
         )
     
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     except Exception as e:
         logger.error(f"添加消息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to add messages: {str(e)}")
@@ -217,9 +240,9 @@ async def add_messages(session_id: str, request: AddMessagesRequest):
 
 @app.get("/sessions/{session_id}/messages", response_model=GetMessagesResponse)
 async def get_messages(session_id: str, limit: int | None = None):
-    """获取会话消息"""
+    """获取会话消息（如果会话不存在会自动创建）"""
     try:
-        session = session_manager.get_session(session_id)
+        session = await get_or_create_session(session_id)
         
         messages = session.messages
         if limit is not None:
@@ -242,8 +265,6 @@ async def get_messages(session_id: str, limit: int | None = None):
             total_count=len(session.messages),
         )
     
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     except Exception as e:
         logger.error(f"获取消息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get messages: {str(e)}")
@@ -251,9 +272,9 @@ async def get_messages(session_id: str, limit: int | None = None):
 
 @app.post("/sessions/{session_id}/compact", response_model=CompactResponse)
 async def compact_conversation(session_id: str, request: CompactRequest):
-    """压缩对话"""
+    """压缩对话（如果会话不存在会自动创建）"""
     try:
-        session = session_manager.get_session(session_id)
+        session = await get_or_create_session(session_id)
         reme = session.reme
         
         # 获取当前token计数
@@ -300,8 +321,6 @@ async def compact_conversation(session_id: str, request: CompactRequest):
             compact_type=request.compact_type,
         )
     
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     except Exception as e:
         logger.error(f"压缩失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to compact: {str(e)}")
@@ -309,9 +328,9 @@ async def compact_conversation(session_id: str, request: CompactRequest):
 
 @app.post("/sessions/{session_id}/summary", response_model=SummaryResponse)
 async def summary_conversation(session_id: str, request: SummaryRequest):
-    """生成对话摘要"""
+    """生成对话摘要（如果会话不存在会自动创建）"""
     try:
-        session = session_manager.get_session(session_id)
+        session = await get_or_create_session(session_id)
         reme = session.reme
         
         # 获取token计数
@@ -343,8 +362,6 @@ async def summary_conversation(session_id: str, request: SummaryRequest):
             is_background=request.background,
         )
     
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     except Exception as e:
         logger.error(f"生成摘要失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate summary: {str(e)}")
@@ -352,9 +369,9 @@ async def summary_conversation(session_id: str, request: SummaryRequest):
 
 @app.post("/sessions/{session_id}/search", response_model=SearchResponse)
 async def search_memory(session_id: str, request: SearchRequest):
-    """搜索记忆"""
+    """搜索记忆（如果会话不存在会自动创建）"""
     try:
-        session = session_manager.get_session(session_id)
+        session = await get_or_create_session(session_id)
         reme = session.reme
         
         # 执行搜索
@@ -383,8 +400,6 @@ async def search_memory(session_id: str, request: SearchRequest):
             result_count=len(results),
         )
     
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     except Exception as e:
         logger.error(f"搜索失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to search: {str(e)}")
@@ -392,15 +407,13 @@ async def search_memory(session_id: str, request: SearchRequest):
 
 @app.get("/sessions/{session_id}/stats", response_model=SessionStatsResponse)
 async def get_session_stats(session_id: str):
-    """获取会话统计"""
+    """获取会话统计（如果会话不存在会自动创建）"""
     try:
-        session = session_manager.get_session(session_id)
+        session = await get_or_create_session(session_id)
         stats = session.get_stats()
         
         return SessionStatsResponse(**stats)
     
-    except KeyError:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     except Exception as e:
         logger.error(f"获取统计失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
