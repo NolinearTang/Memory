@@ -21,6 +21,7 @@ from agentscope.message import Msg
 import uvicorn
 
 from ..core.session_manager import SessionManager
+from ..core.simple_token_counter import SimpleTokenCounter
 from ..core.models import (
     CreateSessionRequest, CreateSessionResponse,
     AddMessagesRequest, AddMessagesResponse,
@@ -248,16 +249,33 @@ async def get_messages(session_id: str, limit: int | None = None):
         if limit is not None:
             messages = messages[-limit:]
         
-        # 转换为字典
-        msg_dicts = [
-            {
-                "name": msg.name,
-                "role": msg.role,
-                "content": msg.content,
-                "metadata": msg.metadata if hasattr(msg, 'metadata') else {},
-            }
-            for msg in messages
-        ]
+        # 转换为字典（处理可能的字符串消息）
+        msg_dicts = []
+        for msg in messages:
+            if isinstance(msg, str):
+                # 压缩后的字符串消息
+                msg_dicts.append({
+                    "name": "system",
+                    "role": "system",
+                    "content": msg,
+                    "metadata": {"compressed": True},
+                })
+            elif hasattr(msg, 'name'):
+                # 正常的 Msg 对象
+                msg_dicts.append({
+                    "name": msg.name,
+                    "role": msg.role,
+                    "content": msg.content,
+                    "metadata": msg.metadata if hasattr(msg, 'metadata') else {},
+                })
+            else:
+                # 其他类型，尝试转换
+                msg_dicts.append({
+                    "name": getattr(msg, 'name', 'unknown'),
+                    "role": getattr(msg, 'role', 'system'),
+                    "content": str(msg) if not hasattr(msg, 'content') else msg.content,
+                    "metadata": {},
+                })
         
         return GetMessagesResponse(
             session_id=session_id,
@@ -277,9 +295,9 @@ async def compact_conversation(session_id: str, request: CompactRequest):
         session = await get_or_create_session(session_id)
         reme = session.reme
         
-        # 获取当前token计数
-        token_counter = reme.get_token_counter()
-        tokens_before = sum(token_counter.get_num_tokens(msg.content or "") for msg in session.messages)
+        # 获取当前token计数（使用简单计数器）
+        token_counter = SimpleTokenCounter()
+        tokens_before = token_counter.count_messages(session.messages)
         
         # 根据类型执行压缩
         if request.compact_type == "tool_result" or request.compact_type == "auto":
@@ -287,18 +305,35 @@ async def compact_conversation(session_id: str, request: CompactRequest):
             session.messages = await reme.compact_tool_result(session.messages)
         
         if request.compact_type == "memory" or request.compact_type == "auto":
-            # 压缩记忆
-            threshold = request.threshold or 100000
+            # 压缩记忆（默认 2000 tokens 触发压缩）
+            threshold = request.threshold or 2000  # 默认 2000 tokens
+            # 使用 max_input_length 和 compact_ratio 来控制压缩阈值
+            # memory_compact_threshold = max_input_length * compact_ratio
+            # 因此 max_input_length = threshold / compact_ratio
+            max_input_length = threshold / 0.7
+            
             compact_result = await reme.compact_memory(
                 messages=session.messages,
-                memory_compact_threshold=threshold,
+                max_input_length=max_input_length,
+                compact_ratio=0.7,
+                return_dict=True,  # 返回字典格式
             )
             
+            # 处理压缩结果
             if isinstance(compact_result, dict):
-                session.messages = compact_result.get("history_compact", session.messages)
+                history_compact = compact_result.get("history_compact", session.messages)
+                # 如果返回的是字符串（摘要），转换为 Msg 对象
+                if isinstance(history_compact, str):
+                    from agentscope.message import Msg
+                    session.messages = [Msg(name="system", role="system", content=history_compact)]
+                elif isinstance(history_compact, list):
+                    session.messages = history_compact
+                else:
+                    # 保持原样
+                    pass
         
         # 计算压缩后token数
-        tokens_after = sum(token_counter.get_num_tokens(msg.content or "") for msg in session.messages)
+        tokens_after = token_counter.count_messages(session.messages)
         tokens_saved = tokens_before - tokens_after
         compression_ratio = tokens_saved / tokens_before if tokens_before > 0 else 0.0
         
@@ -333,9 +368,9 @@ async def summary_conversation(session_id: str, request: SummaryRequest):
         session = await get_or_create_session(session_id)
         reme = session.reme
         
-        # 获取token计数
-        token_counter = reme.get_token_counter()
-        tokens_before = sum(token_counter.get_num_tokens(msg.content or "") for msg in session.messages)
+        # 获取token计数（使用简单计数器）
+        token_counter = SimpleTokenCounter()
+        tokens_before = token_counter.count_messages(session.messages)
         
         # 生成摘要
         summary_result = await reme.summary_memory(
@@ -348,7 +383,7 @@ async def summary_conversation(session_id: str, request: SummaryRequest):
         elif isinstance(summary_result, str):
             summary_text = summary_result
         
-        tokens_after = token_counter.get_num_tokens(summary_text)
+        tokens_after = token_counter.get_num_tokens(summary_text or "")
         
         session.update_active()
         
