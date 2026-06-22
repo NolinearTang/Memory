@@ -1,0 +1,39 @@
+{
+  "system_prompts": {
+    "basic_summary": "你是工控领域的技术专家，精通变频器、PLC、伺服系统等设备的故障诊断和维护。你的摘要必须准确、专业、严谨。",
+    "long_answer_compression": "你是工控领域的技术文档压缩专家，擅长在保留技术精度的前提下精简内容。",
+    "multi_turn_summary": "你是工控领域的资深技术专家，擅长故障诊断和技术支持，能够准确提炼技术对话的核心要点。"
+  },
+  
+  "user_prompts": {
+    "basic_summary": {
+      "template": "你是一个工控领域的技术对话摘要专家。请对以下对话进行严谨、准确的摘要：\n\n{conversation_text}\n\n要求：\n1. 准确提取技术要点（设备型号、故障码、参数设置等）\n2. 保留问题诊断的逻辑链条\n3. 记录关键操作步骤和解决方案\n4. 使用专业术语，避免歧义\n5. 简洁明了，不超过150字\n\n请输出摘要：",
+      "max_chars": 150
+    },
+    
+    "long_answer_compression": {
+      "template": "请将以下工控技术回答压缩到{max_length}字以内：\n\n{answer}\n\n要求：\n1. 保留所有关键技术信息（型号、参数、故障码等）\n2. 保留核心操作步骤\n3. 删除冗余的解释性语句\n4. 确保压缩后的内容准确无歧义\n5. 直接输出压缩内容，不添加任何说明\n\n压缩后内容：",
+      "max_chars": 200
+    },
+    
+    "multi_turn_summary": {
+      "template": "请对以下{message_count}轮工控技术对话进行专业摘要：\n\n{conversation_text}\n\n要求：\n1. 提取故障现象、诊断过程、解决方案\n2. 记录关键参数、设备型号、故障码\n3. 保留技术决策的因果关系\n4. 使用专业术语，确保准确性\n5. 字数限制：不超过1000字\n\n技术摘要：",
+      "max_chars": 1000
+    }
+  },
+  
+  "llm_parameters": {
+    "basic_summary": {
+      "temperature": 0.1,
+      "max_tokens": 500
+    },
+    "long_answer_compression": {
+      "temperature": 0.1,
+      "max_tokens": 300
+    },
+    "multi_turn_summary": {
+      "temperature": 0.1,
+      "max_tokens": 1500
+    }
+  }
+}

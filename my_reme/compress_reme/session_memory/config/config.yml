@@ -1,0 +1,53 @@
+# Session Memory 配置文件
+
+# 模型配置中心 - 支持多个LLM模型
+model_hub:
+  # OpenAI GPT-4
+  qwen3.6-35b-a3b:
+    api_key: "sk-47e2545c42e743f681345a37b2b59d20"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    model_name: "qwen3.6-35b-a3b"
+    temperature: 0.01
+    max_tokens: 1024
+    timeout: 60
+    max_retries: 2
+
+# LLM配置 - 选择使用哪个模型
+llm:
+  selected_model: "qwen3.6-35b-a3b"  # 从 model_hub 中选择，默认使用 gpt4
+
+# 存储配置
+storage:
+  dir: ".session_memory"
+  messages_subdir: "messages"
+  metadata_subdir: "metadata"
+
+# Session管理配置
+session:
+  keep_recent: 3  # 保留最近N轮对话
+  compress_threshold: 200  # 长回答压缩阈值（字符数）
+  max_turns_before_summary: 6  # 超过此消息数启用详细摘要
+
+# Prompts配置
+prompts:
+  file: "prompts/prompts.json"
+  
+# 检索配置
+retrieval:
+  bm25:
+    k1: 1.5
+    b: 0.75
+    top_k: 5  # 返回Top K相关对话
+
+# 服务配置
+server:
+  host: "0.0.0.0"
+  port: 8789
+  reload: false
+  log_level: "info"
+  
+# 功能开关
+features:
+  enable_summary: true
+  enable_compression: true
+  enable_bm25: true
