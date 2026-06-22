@@ -88,14 +88,7 @@ async def startup_event():
         llm_client = None
     
     manager = SessionMemoryManager(storage_dir=".session_memory")
-    
-    if not os.getenv("LLM_API_KEY"):
-        logger.warning("⚠️  未设置 LLM_API_KEY 环境变量！")
-        logger.warning("   请在 .env 文件中配置或设置环境变量")
-        logger.warning("   示例: LLM_API_KEY=your-api-key")
-    else:
-        logger.info("✅ LLM API 配置已加载")
-    
+
     logger.info("Session Memory服务器启动成功")
 
 
