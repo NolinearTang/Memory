@@ -86,10 +86,7 @@ def debug_session(session_id: str, query: str = ""):
         
         print(f"\n--- User Input ---")
         user_input = llm_input.get('user_input', '')
-        if len(user_input) > 500:
-            print(user_input[:500] + f"\n... (共 {len(user_input)} 字符，已截断)")
-        else:
-            print(user_input)
+        print(user_input)
         
         print("\n" + "=" * 80)
         print("✅ 调试完成")
