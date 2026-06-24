@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -299,10 +299,33 @@ async def chat_page():
     raise HTTPException(status_code=404, detail="聊天页面未找到")
 
 
-@app.post("/add_message", response_model=AddMessageResponse)
-async def add_message(request: AddMessageRequest):
+async def _process_add_message(
+    session_id: str,
+    messages: list,
+    fault_code: list,
+    function_code: list,
+    product_code: list,
+):
+    """后台任务：异步处理消息添加"""
     try:
-        result = await manager.add_message(
+        await manager.add_message(
+            session_id=session_id,
+            messages=messages,
+            fault_code=fault_code,
+            function_code=function_code,
+            product_code=product_code,
+        )
+        logger.info(f"后台任务完成：添加消息到会话 {session_id}: {len(messages)} 条")
+    except Exception as e:
+        logger.error(f"后台任务失败：添加消息到会话 {session_id} 失败: {e}", exc_info=True)
+
+
+@app.post("/add_message", response_model=AddMessageResponse)
+async def add_message(request: AddMessageRequest, background_tasks: BackgroundTasks):
+    try:
+        # 添加后台任务
+        background_tasks.add_task(
+            _process_add_message,
             session_id=request.session_id,
             messages=request.messages,
             fault_code=request.fault_code,
@@ -310,16 +333,17 @@ async def add_message(request: AddMessageRequest):
             product_code=request.product_code,
         )
         
-        logger.info(f"添加消息到会话 {request.session_id}: {len(request.messages)} 条")
+        logger.info(f"接收到添加消息请求，会话 {request.session_id}: {len(request.messages)} 条，后台处理中...")
         
+        # 立即返回成功响应
         return AddMessageResponse(
             code=200,
-            message="success",
-            data=result,
+            message="Message received and processing in background",
+            data={"session_id": request.session_id, "status": "processing"},
         )
     
     except Exception as e:
-        logger.error(f"添加消息失败: {e}", exc_info=True)
+        logger.error(f"添加消息请求失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to add message: {str(e)}")
 
 
