@@ -16,156 +16,166 @@ class ContentMappingBuilder:
     """内容映射构建器（简化版）"""
     
     def __init__(self):
-        self.content_list = []  # 所有content的列表
-        self.sub_doc_list = []  # 所有sub_doc的列表
+        self.content_list = []  # 所有content的列表（字典列表）
+        self.sub_doc_list = []  # 所有sub_doc的列表（字典列表）
         self.mapping = {}  # content_idx -> [sub_doc_idx, ...] 的映射
         self.content2idx = {}  # content -> content_idx 的映射
         
         # 用于去重
         self._content_set = set()
-        self._sub_doc_content2idx = {}  # sub_doc内容 -> sub_doc_idx的映射，用于去重
+        self._sub_doc_content2idx = {}  # sub_doc内容的JSON字符串 -> sub_doc_idx的映射，用于去重
+    
+    def _dict_to_key(self, d: Dict[str, Any]) -> str:
+        """将字典转换为可哈希的key（用于去重）"""
+        import json
+        return json.dumps(d, ensure_ascii=False, sort_keys=True)
         
-    def add_fault_file_data(self, fault_file_data: List[Dict[str, Any]], sub_doc_id_to_content: Dict[Any, str] = None):
+    def add_fault_file_data(self, fault_file_data: List[Dict[str, Any]], sub_doc_id_to_content: Dict[Any, Dict[str, Any]] = None):
         """
         添加故障类文件数据
         
         Args:
-            fault_file_data: [{"content": "", "sub_doc_id": [xx, xx]}, ...]
-            sub_doc_id_to_content: {sub_doc_id: sub_doc_content} 映射字典（可选）
+            fault_file_data: [{"content": {"title": "", "content": ""}, "sub_doc_id": [xx, xx]}, ...]
+            sub_doc_id_to_content: {sub_doc_id: {"title": "", "content": ""}} 映射字典（可选）
         """
         for item in fault_file_data:
-            content = item.get("content", "")
+            content = item.get("content", {})
             sub_doc_ids = item.get("sub_doc_id", [])
             
-            if content in self._content_set:
+            content_key = self._dict_to_key(content)
+            if content_key in self._content_set:
                 continue
             
             self.content_list.append(content)
-            self._content_set.add(content)
+            self._content_set.add(content_key)
             content_idx = len(self.content_list)
-            self.content2idx[content] = content_idx
+            self.content2idx[content_key] = content_idx
             
             mapped_sub_doc_idxs = []
             for sub_doc_id in sub_doc_ids:
                 if sub_doc_id_to_content and sub_doc_id in sub_doc_id_to_content:
                     sub_doc_content = sub_doc_id_to_content[sub_doc_id]
                 else:
-                    sub_doc_content = sub_doc_id
+                    sub_doc_content = {"title": str(sub_doc_id), "content": str(sub_doc_id)}
                 
-                if sub_doc_content in self._sub_doc_content2idx:
-                    sub_doc_idx = self._sub_doc_content2idx[sub_doc_content]
+                sub_doc_key = self._dict_to_key(sub_doc_content)
+                if sub_doc_key in self._sub_doc_content2idx:
+                    sub_doc_idx = self._sub_doc_content2idx[sub_doc_key]
                 else:
                     self.sub_doc_list.append(sub_doc_content)
                     sub_doc_idx = len(self.sub_doc_list)
-                    self._sub_doc_content2idx[sub_doc_content] = sub_doc_idx
+                    self._sub_doc_content2idx[sub_doc_key] = sub_doc_idx
                 
                 mapped_sub_doc_idxs.append(sub_doc_idx)
             
             self.mapping[content_idx] = mapped_sub_doc_idxs
     
-    def add_function_file_data(self, function_file_data: List[Dict[str, Any]], sub_doc_id_to_content: Dict[Any, str] = None):
+    def add_function_file_data(self, function_file_data: List[Dict[str, Any]], sub_doc_id_to_content: Dict[Any, Dict[str, Any]] = None):
         """
         添加功能类文件数据
         
         Args:
-            function_file_data: [{"content": "", "sub_doc_id": [xx, xx]}, ...]
-            sub_doc_id_to_content: {sub_doc_id: sub_doc_content} 映射字典（可选）
+            function_file_data: [{"content": {"title": "", "content": ""}, "sub_doc_id": [xx, xx]}, ...]
+            sub_doc_id_to_content: {sub_doc_id: {"title": "", "content": ""}} 映射字典（可选）
         """
         for item in function_file_data:
-            content = item.get("content", "")
+            content = item.get("content", {})
             sub_doc_ids = item.get("sub_doc_id", [])
             
-            if content in self._content_set:
+            content_key = self._dict_to_key(content)
+            if content_key in self._content_set:
                 continue
             
             self.content_list.append(content)
-            self._content_set.add(content)
+            self._content_set.add(content_key)
             content_idx = len(self.content_list)
-            self.content2idx[content] = content_idx
+            self.content2idx[content_key] = content_idx
             
             mapped_sub_doc_idxs = []
             for sub_doc_id in sub_doc_ids:
                 if sub_doc_id_to_content and sub_doc_id in sub_doc_id_to_content:
                     sub_doc_content = sub_doc_id_to_content[sub_doc_id]
                 else:
-                    sub_doc_content = sub_doc_id
+                    sub_doc_content = {"title": str(sub_doc_id), "content": str(sub_doc_id)}
                 
-                if sub_doc_content in self._sub_doc_content2idx:
-                    sub_doc_idx = self._sub_doc_content2idx[sub_doc_content]
+                sub_doc_key = self._dict_to_key(sub_doc_content)
+                if sub_doc_key in self._sub_doc_content2idx:
+                    sub_doc_idx = self._sub_doc_content2idx[sub_doc_key]
                 else:
                     self.sub_doc_list.append(sub_doc_content)
                     sub_doc_idx = len(self.sub_doc_list)
-                    self._sub_doc_content2idx[sub_doc_content] = sub_doc_idx
+                    self._sub_doc_content2idx[sub_doc_key] = sub_doc_idx
                 
                 mapped_sub_doc_idxs.append(sub_doc_idx)
             
             self.mapping[content_idx] = mapped_sub_doc_idxs
     
-    def add_common_file_data(self, common_file_data: List[Dict[str, Any]], sub_doc_id_to_content: Dict[Any, str] = None):
+    def add_common_file_data(self, common_file_data: List[Dict[str, Any]], sub_doc_id_to_content: Dict[Any, Dict[str, Any]] = None):
         """
         添加通用类文件数据
         
         Args:
-            common_file_data: [{"content": "", "sub_doc_id": [xx, xx]}, ...]
-            sub_doc_id_to_content: {sub_doc_id: sub_doc_content} 映射字典（可选）
+            common_file_data: [{"content": {"title": "", "content": ""}, "sub_doc_id": [xx, xx]}, ...]
+            sub_doc_id_to_content: {sub_doc_id: {"title": "", "content": ""}} 映射字典（可选）
         """
         for item in common_file_data:
-            content = item.get("content", "")
+            content = item.get("content", {})
             sub_doc_ids = item.get("sub_doc_id", [])
             
-            if content in self._content_set:
+            content_key = self._dict_to_key(content)
+            if content_key in self._content_set:
                 continue
             
             self.content_list.append(content)
-            self._content_set.add(content)
+            self._content_set.add(content_key)
             content_idx = len(self.content_list)
-            self.content2idx[content] = content_idx
+            self.content2idx[content_key] = content_idx
             
             mapped_sub_doc_idxs = []
             for sub_doc_id in sub_doc_ids:
                 if sub_doc_id_to_content and sub_doc_id in sub_doc_id_to_content:
                     sub_doc_content = sub_doc_id_to_content[sub_doc_id]
                 else:
-                    sub_doc_content = sub_doc_id
+                    sub_doc_content = {"title": str(sub_doc_id), "content": str(sub_doc_id)}
                 
-                if sub_doc_content in self._sub_doc_content2idx:
-                    sub_doc_idx = self._sub_doc_content2idx[sub_doc_content]
+                sub_doc_key = self._dict_to_key(sub_doc_content)
+                if sub_doc_key in self._sub_doc_content2idx:
+                    sub_doc_idx = self._sub_doc_content2idx[sub_doc_key]
                 else:
                     self.sub_doc_list.append(sub_doc_content)
                     sub_doc_idx = len(self.sub_doc_list)
-                    self._sub_doc_content2idx[sub_doc_content] = sub_doc_idx
+                    self._sub_doc_content2idx[sub_doc_key] = sub_doc_idx
                 
                 mapped_sub_doc_idxs.append(sub_doc_idx)
             
             self.mapping[content_idx] = mapped_sub_doc_idxs
     
-    def add_pgindex_data(self, pgindex_data: List[str]):
+    def add_pgindex_data(self, pgindex_data: List[Dict[str, Any]]):
         """
         添加pgindex数据
         
         Args:
-            pgindex_data: ["content", "content", ...]
+            pgindex_data: [{"title": "", "content": ""}, ...]
         """
         for content in pgindex_data:
-            # 跳过重复的content
-            if content in self._content_set:
+            content_key = self._dict_to_key(content)
+            if content_key in self._content_set:
                 continue
             
-            # 添加content
             self.content_list.append(content)
-            self._content_set.add(content)
+            self._content_set.add(content_key)
             content_idx = len(self.content_list)
-            self.content2idx[content] = content_idx  # 添加到映射字典
+            self.content2idx[content_key] = content_idx
             
-            # 文件2的content渲染块就是自己
-            if content in self._sub_doc_content2idx:
-                sub_doc_idx = self._sub_doc_content2idx[content]
+            # pgindex的content渲染块就是自己
+            sub_doc_key = content_key
+            if sub_doc_key in self._sub_doc_content2idx:
+                sub_doc_idx = self._sub_doc_content2idx[sub_doc_key]
             else:
                 self.sub_doc_list.append(content)
                 sub_doc_idx = len(self.sub_doc_list)
-                self._sub_doc_content2idx[content] = sub_doc_idx
+                self._sub_doc_content2idx[sub_doc_key] = sub_doc_idx
             
-            # 保存映射
             self.mapping[content_idx] = [sub_doc_idx]
     
     def get_content_list(self) -> List[str]:
@@ -206,37 +216,37 @@ def main():
     
     # 模拟故障类文件数据
     fault_file_data = [
-        {"content": "变频器MD630过流故障", "sub_doc_id": [101, 102]},
-        {"content": "变频器MD605过压故障", "sub_doc_id": [201, 202]},
+        {"content": {"title": "故障1", "content": "变频器MD630过流故障"}, "sub_doc_id": [101, 102]},
+        {"content": {"title": "故障2", "content": "变频器MD605过压故障"}, "sub_doc_id": [201, 202]},
     ]
     
     # 模拟功能类文件数据
     function_file_data = [
-        {"content": "变频器MD630的参数配置功能", "sub_doc_id": [301, 302, 303]},
+        {"content": {"title": "功能1", "content": "变频器MD630的参数配置功能"}, "sub_doc_id": [301, 302, 303]},
     ]
     
     # 模拟通用类文件数据
     common_file_data = [
-        {"content": "变频器安装注意事项", "sub_doc_id": [401]},
+        {"content": {"title": "通用1", "content": "变频器安装注意事项"}, "sub_doc_id": [401]},
     ]
     
     # sub_doc_id 到实际内容的映射（三类共用）
     sub_doc_id_to_content = {
-        101: "MD630过流故障章节1：故障原因",
-        102: "MD630过流故障章节2：解决方法",
-        201: "MD605过压故障章节1：故障原因",
-        202: "MD605过压故障章节2：解决方法",
-        301: "MD630参数配置章节1：基础参数",
-        302: "MD630参数配置章节2：高级参数",
-        303: "MD630参数配置章节3：通讯参数",
-        401: "变频器安装：物理安装指南"
+        101: {"title": "故障原因", "content": "MD630过流故障章节1：故障原因"},
+        102: {"title": "解决方法", "content": "MD630过流故障章节2：解决方法"},
+        201: {"title": "故障原因", "content": "MD605过压故障章节1：故障原因"},
+        202: {"title": "解决方法", "content": "MD605过压故障章节2：解决方法"},
+        301: {"title": "基础参数", "content": "MD630参数配置章节1：基础参数"},
+        302: {"title": "高级参数", "content": "MD630参数配置章节2：高级参数"},
+        303: {"title": "通讯参数", "content": "MD630参数配置章节3：通讯参数"},
+        401: {"title": "安装指南", "content": "变频器安装：物理安装指南"}
     }
     
-    # 模拟文件2的数据（content本身就是sub_doc）
-    file2_data = [
-        "变频器基本原理介绍",
-        "变频器常见问题解答",
-        "变频器维护保养指南"
+    # 模拟pgindex数据（content本身就是sub_doc）
+    pgindex_data = [
+        {"title": "原理", "content": "变频器基本原理介绍"},
+        {"title": "问答", "content": "变频器常见问题解答"},
+        {"title": "维护", "content": "变频器维护保养指南"}
     ]
     
     # 创建映射构建器
@@ -253,7 +263,7 @@ def main():
     builder.add_common_file_data(common_file_data, sub_doc_id_to_content)
     
     print("=== 添加pgindex数据 ===")
-    builder.add_pgindex_data(file2_data)
+    builder.add_pgindex_data(pgindex_data)
     
     # 获取结果
     content_list = builder.get_content_list()
