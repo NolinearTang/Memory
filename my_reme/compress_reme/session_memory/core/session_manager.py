@@ -208,7 +208,17 @@ class SessionMemoryManager:
         # 检查是否仍在处理中
         still_processing = session_id in self._processing_tasks and not self._processing_tasks[session_id].done()
         
-        context_info = await self._build_context(session_data, query, top_k, is_processing=still_processing)
+        # 对facts进行相关性搜索（如果有query）- 只搜索一次
+        relevant_facts = []
+        if session_data.facts:
+            relevant_facts = self._search_relevant_facts(session_data.facts, query, top_k=20)
+        
+        # 将搜索好的facts传递给_build_context，避免重复搜索
+        context_info = await self._build_context(
+            session_data, query, top_k, 
+            is_processing=still_processing,
+            relevant_facts=relevant_facts  # 传入已搜索好的facts
+        )
         
         return {
             "code": 200,
@@ -216,7 +226,8 @@ class SessionMemoryManager:
             "data": {
                 "session_id": session_id,
                 "state": state_info,
-                "context": context_info,
+                "facts": relevant_facts,  # 独立的facts字段（列表，相关性过滤后的）
+                "context": context_info,  # context中也包含facts等完整信息（字符串格式）
                 "is_processing": still_processing,  # 标记是否还在处理中
             },
         }
@@ -242,6 +253,7 @@ class SessionMemoryManager:
         query: str,
         top_k: int,
         is_processing: bool = False,
+        relevant_facts: List[str] = None,  # 接收已搜索好的facts
     ) -> str:
         parts = []
         
@@ -253,13 +265,14 @@ class SessionMemoryManager:
         if session_data.session_summary:
             parts.append(f"对话摘要: {session_data.session_summary}")
         
-        # Facts信息（无论是否在处理，都返回已有的facts）
-        if session_data.facts:
-            # 对facts进行相关性搜索
-            relevant_facts = self._search_relevant_facts(session_data.facts, query, top_k=20)
-            if relevant_facts:
-                facts_text = "\n".join(f"- {fact}" for fact in relevant_facts)
-                parts.append(f"关键事实:\n{facts_text}")
+        # Facts信息（使用传入的已搜索好的facts）
+        if relevant_facts:
+            facts_text = "\n".join(f"- {fact}" for fact in relevant_facts)
+            parts.append(f"关键事实:\n{facts_text}")
+        elif session_data.facts:
+            # 如果没有传入relevant_facts但有原始facts，直接使用（向后兼容）
+            facts_text = "\n".join(f"- {fact}" for fact in session_data.facts[:20])
+            parts.append(f"关键事实:\n{facts_text}")
         else:
             # 兜底：如果facts为空，尝试从最近消息中快速提取基本信息
             if len(session_data.all_messages) >= 2:
