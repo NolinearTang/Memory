@@ -38,6 +38,8 @@ class SessionData(BaseModel):
     function_code: List[str] = Field(default_factory=list)
     product_code: List[str] = Field(default_factory=list)
     session_summary: str = ""
+    facts: List[str] = Field(default_factory=list)  # 对话中的客观事实，用户澄清优先
     all_messages: List[Dict[str, str]] = Field(default_factory=list)
     recent_messages: List[Dict[str, Any]] = Field(default_factory=list)  # 允许Any类型（支持original_length为int）
-    message_summaries: Dict[int, str] = Field(default_factory=dict)
+    message_summaries: Dict[int, str] = Field(default_factory=dict)  # 消息压缩缓存
+    last_summarized_index: int = 0  # 上次摘要处理到的消息索引

@@ -2,7 +2,10 @@
   "system_prompts": {
     "basic_summary": "你是工控领域的技术专家，精通变频器、PLC、伺服系统等设备的故障诊断和维护。你的摘要必须准确、专业、严谨。",
     "long_answer_compression": "你是工控领域的技术文档压缩专家，擅长在保留技术精度的前提下精简内容。",
-    "multi_turn_summary": "你是工控领域的资深技术专家，擅长故障诊断和技术支持，能够准确提炼技术对话的核心要点。"
+    "multi_turn_summary": "你是工控领域的资深技术专家，擅长故障诊断和技术支持，能够准确提炼技术对话的核心要点。",
+    "fact_extraction": "你是工控领域的信息提取专家，擅长从技术对话中提取客观事实。重要原则：1）用户的陈述、澄清、纠正是最高优先级，必须以用户说的为准；2）assistant的回答可能包含错误，应谨慎对待，仅提取用户已确认或明确接受的内容；3）当有冲突时，完全忽略assistant的错误说法，只保留用户的正确陈述。",
+    "incremental_summary": "你是工控领域的技术摘要专家，擅长更新和整合技术对话摘要。你需要准确融合旧摘要和新对话内容，确保信息的连贯性和完整性。",
+    "fact_reconciliation": "你是工控领域的信息整合专家。你的任务是整理facts列表：去除重复、识别冲突并更新。当新对话中用户澄清或纠正了之前的信息时，必须删除或更新旧的错误facts。用户的澄清永远优先于assistant的回答。"
   },
   
   "user_prompts": {
@@ -19,6 +22,21 @@
     "multi_turn_summary": {
       "template": "请对以下{message_count}轮工控技术对话进行专业摘要：\n\n{conversation_text}\n\n要求：\n1. 提取故障现象、诊断过程、解决方案\n2. 记录关键参数、设备型号、故障码\n3. 保留技术决策的因果关系\n4. 使用专业术语，确保准确性\n5. 字数限制：不超过1000字\n\n技术摘要：",
       "max_chars": 1000
+    },
+    
+    "fact_extraction": {
+      "template": "请从以下工控技术对话中提取客观事实。\n\n**提取原则（优先级从高到低）：**\n1. **用户的陈述、澄清、纠正**（最高优先级，必须提取）\n   - 用户说的设备型号、参数值、故障现象等\n   - 用户的纠正（如：'不对，应该是...'、'错了，其实是...'）\n2. **用户已确认接受的assistant建议**\n   - 用户明确表示'好的'、'明白了'、'我试试'等接受的建议\n3. **明确的技术定义**（如：E001=过流保护）\n   - 仅提取公认的技术定义，不提取assistant的推测\n\n**注意事项：**\n- assistant的回答可能包含错误，不要盲目提取\n- 当有冲突时，完全忽略assistant的错误说法\n- 控制facts数量，避免冗余\n- 每条fact应该简洁、独立、准确\n\n对话内容：\n{conversation_text}\n\n请以列表形式输出事实（每行一个事实），不要添加编号。示例：\n用户确认设备型号为MD630变频器\n用户反馈故障码为E001\n用户澄清参数P01设置为3秒（不是5秒）\n\n事实列表：",
+      "max_chars": 500
+    },
+    
+    "incremental_summary": {
+      "template": "请基于旧摘要和新对话内容，生成更新后的技术摘要。\n\n【旧摘要】\n{old_summary}\n\n【新增对话】\n{new_conversation}\n\n【已提取的关键事实】\n{facts}\n\n要求：\n1. 整合旧摘要和新对话的信息，保持连贯性\n2. 保留所有关键技术细节（型号、参数、故障码等）\n3. 去除冗余和重复信息\n4. 如果新对话中有更新或纠正的信息，以新信息为准\n5. 保持逻辑清晰，因果关系明确\n6. 字数限制：不超过1000字\n\n更新后的摘要：",
+      "max_chars": 1000
+    },
+    
+    "fact_reconciliation": {
+      "template": "请整合以下工控技术对话中的facts列表。\n\n【现有Facts】\n{existing_facts}\n\n【新增对话】\n{new_conversation}\n\n**整合原则：**\n1. **去除重复**：相同或语义重复的facts只保留一条\n2. **识别冲突并更新**：\n   - 用户说'不对'、'错了'、'应该是'等 → 删除旧的错误fact\n   - 用户澄清了新的正确信息 → 添加用户的陈述\n   - assistant的推测与用户陈述冲突 → 删除assistant的，保留用户的\n3. **谨慎对待assistant内容**：\n   - 只保留用户已确认或明确接受的assistant建议\n   - assistant的推测、建议、可能性等不作为fact\n4. **提取新facts**：\n   - 优先提取用户的陈述\n   - 只在用户确认后才提取assistant的建议\n5. **控制数量**：保持简洁，每条fact独立、完整、准确\n\n**示例：**\n- 现有：'assistant建议小功率≤2.2kW'\n  新对话：user说'错了，应该≤2.5kW'\n  结果：删除assistant的，保留'用户澄清小功率≤2.5kW'\n\n- 现有：'设备型号MD630'（重复3次）\n  结果：只保留1条\n\n**限制：最多保留100条facts，优先保留最新的。**\n\n请直接输出整合后的facts列表（每行一条，不要编号）：",
+      "max_chars": 800
     }
   },
   
@@ -34,6 +52,18 @@
     "multi_turn_summary": {
       "temperature": 0.1,
       "max_tokens": 1500
+    },
+    "fact_extraction": {
+      "temperature": 0.1,
+      "max_tokens": 800
+    },
+    "incremental_summary": {
+      "temperature": 0.1,
+      "max_tokens": 1500
+    },
+    "fact_reconciliation": {
+      "temperature": 0.1,
+      "max_tokens": 1000
     }
   }
 }
