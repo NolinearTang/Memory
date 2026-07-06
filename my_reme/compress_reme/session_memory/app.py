@@ -22,6 +22,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def _build_storage(kllm_config: dict):
+    """根据配置决定使用 Redis 还是文件存储"""
+    redis_cfg = kllm_config.get('redis', {})
+    if not redis_cfg.get('enabled', False):
+        return None  # 返回 None 则 SessionMemoryManager 使用默认文件存储
+    
+    from redis_handler.redis_client import RedisClient
+    from redis_handler.session_storage_redis import RedisSessionStorage
+    
+    conn_cfg = {
+        'host': redis_cfg.get('host', 'localhost'),
+        'port': redis_cfg.get('port', 6379),
+        'db': redis_cfg.get('db', 0),
+        'decode_responses': redis_cfg.get('decode_responses', True),
+    }
+    if redis_cfg.get('password'):
+        conn_cfg['password'] = redis_cfg['password']
+    
+    client = RedisClient(conn_cfg)
+    client.connect()
+    
+    ttl_cfg = redis_cfg.get('ttl', {})
+    storage = RedisSessionStorage(
+        redis_client=client,
+        single_turn_ttl=ttl_cfg.get('single_turn', 604800),
+        multi_turn_ttl=ttl_cfg.get('multi_turn', 2592000),
+    )
+    logger.info(f"✅ Redis 存储已启用: {conn_cfg['host']}:{conn_cfg['port']}")
+    return storage
+
 app = FastAPI(
     title="Session Memory服务",
     description="基于对话摘要和BM25检索的会话记忆服务",
@@ -87,9 +118,11 @@ async def startup_event():
         logger.error(f"❌ LLM客户端初始化失败: {e}")
         llm_client = None
     
-    manager = SessionMemoryManager(storage_dir=".session_memory")
-
-    logger.info("Session Memory服务器启动成功")
+    kllm_config = get_config()
+    redis_storage = _build_storage(kllm_config)
+    manager = SessionMemoryManager(storage_dir=".session_memory", storage=redis_storage)
+    storage_type = "Redis" if redis_storage else "文件"
+    logger.info(f"Session Memory服务器启动成功（存储模式: {storage_type}）")
 
 
 @app.on_event("shutdown")
@@ -116,20 +149,11 @@ async def root():
             "GET /docs": "API文档（Swagger）",
         },
         "test_ui": {
-            "GET /web": "完整测试界面（Session Memory）",
-            "GET /chat-ui": "简单聊天界面（LLM对话）",
+            "GET /chat-ui": "聊天界面（LLM对话）",
         },
         "model": kllm_config.get('llm', {}).get('selected_model', 'unknown') if 'kllm_config' in globals() else 'unknown',
     }
 
-
-@app.get("/web")
-async def web_ui():
-    """完整的Session Memory测试界面"""
-    html_file = Path(__file__).parent / "frontend" / "index.html"
-    if html_file.exists():
-        return FileResponse(html_file)
-    raise HTTPException(status_code=404, detail="测试界面未找到")
 
 
 @app.get("/config")
@@ -305,6 +329,7 @@ async def _process_add_message(
     fault_code: list,
     function_code: list,
     product_code: list,
+    user_id: str = None,
 ):
     """后台任务：异步处理消息添加"""
     try:
@@ -314,6 +339,7 @@ async def _process_add_message(
             fault_code=fault_code,
             function_code=function_code,
             product_code=product_code,
+            user_id=user_id,
         )
         logger.info(f"后台任务完成：添加消息到会话 {session_id}: {len(messages)} 条")
     except Exception as e:
@@ -331,6 +357,7 @@ async def add_message(request: AddMessageRequest, background_tasks: BackgroundTa
             fault_code=request.fault_code,
             function_code=request.function_code,
             product_code=request.product_code,
+            user_id=request.user_id,
         )
         
         logger.info(f"接收到添加消息请求，会话 {request.session_id}: {len(request.messages)} 条，后台处理中...")
@@ -372,9 +399,21 @@ async def get_message(request: GetMessageRequest):
 
 @app.get("/sessions")
 async def list_sessions():
+    sessions = manager.list_sessions()
     return {
-        "sessions": manager.list_sessions(),
-        "count": len(manager.list_sessions()),
+        "sessions": sessions,
+        "count": len(sessions),
+    }
+
+
+@app.get("/users/{user_id}/sessions")
+async def list_user_sessions(user_id: str):
+    """获取指定用户的所有会话（需要 Redis 存储才能精确按用户查询）"""
+    sessions = manager.list_sessions_by_user(user_id)
+    return {
+        "user_id": user_id,
+        "sessions": sessions,
+        "count": len(sessions),
     }
 
 

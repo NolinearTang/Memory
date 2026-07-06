@@ -9,6 +9,7 @@ class Message(BaseModel):
 
 class AddMessageRequest(BaseModel):
     session_id: str = Field(..., description="会话ID")
+    user_id: Optional[str] = Field(None, description="用户ID，不传时默认用 session_id")
     messages: List[Message] = Field(..., description="当前轮次的对话信息")
     fault_code: List[str] = Field(default_factory=list, description="故障码列表")
     function_code: List[str] = Field(default_factory=list, description="功能码列表")
@@ -23,6 +24,7 @@ class AddMessageResponse(BaseModel):
 
 class GetMessageRequest(BaseModel):
     session_id: str = Field(..., description="会话ID")
+    user_id: Optional[str] = Field(None, description="用户ID，不传时默认用 session_id")
     query: str = Field(..., description="查询内容，用于检索相关对话")
 
 
@@ -42,4 +44,5 @@ class SessionData(BaseModel):
     all_messages: List[Dict[str, str]] = Field(default_factory=list)
     recent_messages: List[Dict[str, Any]] = Field(default_factory=list)  # 允许Any类型（支持original_length为int）
     message_summaries: Dict[int, str] = Field(default_factory=dict)  # 消息压缩缓存
-    last_summarized_index: int = 0  # 上次摘要处理到的消息索引
+    last_summarized_index: int = 0  # 上次summary处理到的消息索引
+    last_facts_index: int = 0       # 上次facts处理到的消息索引（实时更新，无缓冲）

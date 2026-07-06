@@ -61,3 +61,11 @@ class SessionStorage:
     
     def list_sessions(self) -> List[str]:
         return [f.stem for f in self.metadata_dir.glob("*.json")]
+
+    def register_user_session(self, user_id: str, session_id: str):
+        """文件存储不实现用户-会话映射，Redis存储才支持"""
+        pass
+
+    def list_sessions_by_user(self, user_id: str) -> List[str]:
+        """文件存储不支持按用户查询，返回全部"""
+        return self.list_sessions()

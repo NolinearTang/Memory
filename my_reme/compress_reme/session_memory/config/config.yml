@@ -22,6 +22,18 @@ storage:
   messages_subdir: "messages"
   metadata_subdir: "metadata"
 
+# Redis 配置（将 enabled 设为 true 启用 Redis 存储，否则使用文件存储）
+redis:
+  enabled: false
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null           # 无密码留 null
+  decode_responses: true   # 返回字符串而非 bytes
+  ttl:
+    single_turn: 604800    # 单轮对话过期时间（秒），默认7天
+    multi_turn: 2592000    # 多轮对话过期时间（秒），默认30天
+
 # Session管理配置
 session:
   keep_recent: 3  # 保留最近N轮对话
