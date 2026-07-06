@@ -62,22 +62,12 @@ def load_config(config_file: str = None) -> Dict[str, Any]:
         return {}
 
 
-# 全局配置字典
-kllm_config: Dict[str, Any] = None
+# 全局配置字典 - 模块加载时立即初始化，from config import kllm_config 即可直接使用
+kllm_config: Dict[str, Any] = load_config()
 
 
 def get_config() -> Dict[str, Any]:
-    """
-    获取全局配置字典kllm_config
-    
-    Returns:
-        kllm_config: 配置字典
-    """
-    global kllm_config
-    
-    if kllm_config is None:
-        kllm_config = load_config()
-    
+    """返回全局配置字典（兼容旧调用方式）"""
     return kllm_config
 
 

@@ -12,9 +12,11 @@ import uvicorn
 from core.session_manager import SessionMemoryManager
 from core.models import AddMessageRequest, AddMessageResponse, GetMessageRequest, GetMessageResponse
 from core.llm_client import LlmClient
-from config import get_config
+from config import kllm_config
 from pydantic import BaseModel
 import os
+from redis_handler.redis_client import RedisClient
+from redis_handler.session_storage_redis import RedisSessionStorage
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,15 +25,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _build_storage(kllm_config: dict):
-    """根据配置决定使用 Redis 还是文件存储"""
+def _init_redis_storage() -> RedisSessionStorage:
+    """从 kllm_config 初始化 Redis 存储"""
     redis_cfg = kllm_config.get('redis', {})
-    if not redis_cfg.get('enabled', False):
-        return None  # 返回 None 则 SessionMemoryManager 使用默认文件存储
-    
-    from redis_handler.redis_client import RedisClient
-    from redis_handler.session_storage_redis import RedisSessionStorage
-    
     conn_cfg = {
         'host': redis_cfg.get('host', 'localhost'),
         'port': redis_cfg.get('port', 6379),
@@ -40,17 +36,15 @@ def _build_storage(kllm_config: dict):
     }
     if redis_cfg.get('password'):
         conn_cfg['password'] = redis_cfg['password']
-    
     client = RedisClient(conn_cfg)
     client.connect()
-    
     ttl_cfg = redis_cfg.get('ttl', {})
     storage = RedisSessionStorage(
         redis_client=client,
         single_turn_ttl=ttl_cfg.get('single_turn', 604800),
         multi_turn_ttl=ttl_cfg.get('multi_turn', 2592000),
     )
-    logger.info(f"✅ Redis 存储已启用: {conn_cfg['host']}:{conn_cfg['port']}")
+    logger.info(f"✅ Redis 存储已连接: {conn_cfg['host']}:{conn_cfg['port']}")
     return storage
 
 app = FastAPI(
@@ -86,43 +80,23 @@ class ChatResponse(BaseModel):
 async def startup_event():
     global manager, llm_client
     
+    # 初始化 LLM 客户端
     try:
-        from dotenv import load_dotenv
-        load_dotenv()
-        logger.info("已加载 .env 文件")
-    except ImportError:
-        logger.warning("python-dotenv 未安装，跳过 .env 文件加载")
-    except Exception as e:
-        logger.warning(f"加载 .env 文件失败: {e}")
-    
-    # 初始化LLM客户端（从kllm_config获取配置）
-    try:
-        kllm_config = get_config()
-        
-        # 获取选中的模型
         selected_model = kllm_config.get('llm', {}).get('selected_model', 'gpt4')
-        
-        # 从model_hub获取模型配置
         model_config = kllm_config.get('model_hub', {}).get(selected_model)
-        
         if not model_config:
             raise ValueError(f"模型 '{selected_model}' 在 model_hub 中未找到")
-        
         logger.info(f"📋 使用模型: {selected_model} ({model_config.get('model_name')})")
-        logger.info(f"   可用模型: {', '.join(kllm_config.get('model_hub', {}).keys())}")
-        
-        # 传递完整的kllm_config（包含model_hub）
         llm_client = LlmClient(kllm_config)
         logger.info("✅ LLM客户端初始化成功")
     except Exception as e:
         logger.error(f"❌ LLM客户端初始化失败: {e}")
         llm_client = None
     
-    kllm_config = get_config()
-    redis_storage = _build_storage(kllm_config)
-    manager = SessionMemoryManager(storage_dir=".session_memory", storage=redis_storage)
-    storage_type = "Redis" if redis_storage else "文件"
-    logger.info(f"Session Memory服务器启动成功（存储模式: {storage_type}）")
+    # 初始化 Redis 存储
+    storage = _init_redis_storage()
+    manager = SessionMemoryManager(storage=storage)
+    logger.info("Session Memory服务器启动成功")
 
 
 @app.on_event("shutdown")
@@ -151,7 +125,7 @@ async def root():
         "test_ui": {
             "GET /chat-ui": "聊天界面（LLM对话）",
         },
-        "model": kllm_config.get('llm', {}).get('selected_model', 'unknown') if 'kllm_config' in globals() else 'unknown',
+        "model": kllm_config.get('llm', {}).get('selected_model', 'unknown'),
     }
 
 
@@ -159,10 +133,8 @@ async def root():
 @app.get("/config")
 async def get_current_config():
     """获取当前配置信息（供前端使用）"""
-    kllm_config = get_config()
     selected_model = kllm_config.get('llm', {}).get('selected_model', 'unknown')
     model_config = kllm_config.get('model_hub', {}).get(selected_model, {})
-    
     return {
         "selected_model": selected_model,
         "model_name": model_config.get('model_name', 'unknown'),
@@ -197,7 +169,6 @@ async def chat(request: ChatRequest):
         logger.info(f"[{session_id}] 收到聊天请求: {request.message[:50]}...")
         
         # 获取当前模型配置
-        kllm_config = get_config()
         selected_model = kllm_config.get('llm', {}).get('selected_model', 'gpt4')
         model_config = kllm_config.get('model_hub', {}).get(selected_model, {})
         
@@ -286,7 +257,6 @@ async def debug_context(request: dict):
         context_str = data.get('context', '')
     
     # 3. 构造会送给LLM的数据
-    kllm_config = get_config()
     selected_model = kllm_config.get('llm', {}).get('selected_model', 'gpt4')
     
     if context_str:
