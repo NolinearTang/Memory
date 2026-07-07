@@ -11,9 +11,9 @@ class AddMessageRequest(BaseModel):
     session_id: str = Field(..., description="会话ID")
     user_id: Optional[str] = Field(None, description="用户ID，不传时默认用 session_id")
     messages: List[Message] = Field(..., description="当前轮次的对话信息")
-    fault_code: List[str] = Field(default_factory=list, description="故障码列表")
-    function_code: List[str] = Field(default_factory=list, description="功能码列表")
-    product_code: List[str] = Field(default_factory=list, description="产品信息列表")
+    fault_code: List[Any] = Field(default_factory=list, description="故障码列表")
+    function_code: List[Any] = Field(default_factory=list, description="功能码列表")
+    product_code: List[Any] = Field(default_factory=list, description="产品信息列表")
 
 
 class AddMessageResponse(BaseModel):
@@ -36,9 +36,9 @@ class GetMessageResponse(BaseModel):
 
 class SessionData(BaseModel):
     session_id: str
-    fault_code: List[str] = Field(default_factory=list)
-    function_code: List[str] = Field(default_factory=list)
-    product_code: List[str] = Field(default_factory=list)
+    fault_code: List[Any] = Field(default_factory=list)
+    function_code: List[Any] = Field(default_factory=list)
+    product_code: List[Any] = Field(default_factory=list)
     session_summary: str = ""
     facts: List[str] = Field(default_factory=list)  # 对话中的客观事实，用户澄清优先
     all_messages: List[Dict[str, str]] = Field(default_factory=list)

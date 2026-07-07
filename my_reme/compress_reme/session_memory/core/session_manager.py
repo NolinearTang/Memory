@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import List, Dict, Any, Optional
 from core.models import SessionData, Message
 from core.storage import SessionStorage
@@ -18,9 +19,9 @@ class SessionMemoryManager:
         self,
         session_id: str,
         messages: List[Message],
-        fault_code: List[str] = None,
-        function_code: List[str] = None,
-        product_code: List[str] = None,
+        fault_code: List[Any] = None,
+        function_code: List[Any] = None,
+        product_code: List[Any] = None,
         user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         # 处理默认值
@@ -40,9 +41,12 @@ class SessionMemoryManager:
                 product_code=product_code,
             )
         
-        session_data.fault_code = list(set(session_data.fault_code + fault_code))
-        session_data.function_code = list(set(session_data.function_code + function_code))
-        session_data.product_code = list(set(session_data.product_code + product_code))
+        if fault_code:
+            session_data.fault_code = fault_code
+        if function_code:
+            session_data.function_code = function_code
+        if product_code:
+            session_data.product_code = product_code
         
         self.storage.append_messages(session_id, message_dicts)
         
@@ -358,13 +362,25 @@ class SessionMemoryManager:
         """
         fallback_items = []
         
+        def _get_std_entity(item):
+            if not isinstance(item, dict):
+                return str(item)
+            level_keys = sorted(
+                [k for k in item if k.startswith('level')],
+                key=lambda x: int(x.replace('level', '')),
+                reverse=True,
+            )
+            if level_keys:
+                return item[level_keys[0]].get('std_entity', str(item))
+            return str(item)
+
         # 从state提取基本信息
         if session_data.product_code:
-            fallback_items.append(f"涉及产品: {', '.join(session_data.product_code)}")
+            fallback_items.append(f"涉及产品: {', '.join(_get_std_entity(item) for item in session_data.product_code)}")
         if session_data.fault_code:
-            fallback_items.append(f"故障码: {', '.join(session_data.fault_code)}")
+            fallback_items.append(f"故障码: {', '.join(_get_std_entity(item) for item in session_data.fault_code)}")
         if session_data.function_code:
-            fallback_items.append(f"功能码: {', '.join(session_data.function_code)}")
+            fallback_items.append(f"功能码: {', '.join(_get_std_entity(item) for item in session_data.function_code)}")
         
         # 从最近3条消息中提取关键词（简单规则）
         recent_msgs = session_data.all_messages[-3:] if len(session_data.all_messages) >= 3 else session_data.all_messages
