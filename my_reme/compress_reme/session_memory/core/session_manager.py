@@ -267,30 +267,23 @@ class SessionMemoryManager:
                 if fallback_info:
                     parts.append(f"基本信息:\n{fallback_info}")
         
-        # 近期对话：优先使用recent_messages，否则利用message_summaries缓存智能组装
-        if session_data.recent_messages:
-            recent_text = self._format_messages(session_data.recent_messages)
-            parts.append(f"近期对话:\n{recent_text}")
-        elif session_data.all_messages:
-            # 智能兜底：利用message_summaries缓存
-            # 第2-3轮（上次处理时已压缩）用缓存，最新1轮用原始消息
+        # 近期对话：以 all_messages 近3轮为基准，有压缩缓存则替换，保证最新一轮始终展示
+        if session_data.all_messages:
             KEEP_RECENT = 3
             recent_raw = session_data.all_messages[-(KEEP_RECENT * 2):]
             start_idx = len(session_data.all_messages) - len(recent_raw)
-            
+
             smart_recent = []
             for i, msg in enumerate(recent_raw):
                 msg_idx = start_idx + i
                 if msg["role"] == "assistant" and msg_idx in session_data.message_summaries:
-                    # 使用缓存的压缩版本（上次处理已压缩）
                     smart_recent.append({
                         "role": msg["role"],
                         "content": session_data.message_summaries[msg_idx],
                     })
                 else:
-                    # 用原始消息（最新1轮或user消息）
                     smart_recent.append(msg)
-            
+
             recent_text = self._format_messages(smart_recent)
             parts.append(f"近期对话:\n{recent_text}")
         
